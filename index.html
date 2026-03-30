@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EdgeFlow — Live Betting Edge Scanner</title>
+
+<style>
+:root{
+  --bg:#0b1220;
+  --card:#111827;
+  --border:rgba(255,255,255,0.08);
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --green:#22c55e;
+  --yellow:#eab308;
+  --red:#ef4444;
+  --accent:#38bdf8;
+  --shadow:0 20px 50px rgba(0,0,0,0.6);
+  --radius:16px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto;
+}
+
+body{
+  margin:0;
+  background:linear-gradient(180deg,#020617,#0b1220);
+  color:var(--text);
+}
+
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:24px;
+}
+
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:24px;
+}
+
+.title{
+  font-size:28px;
+  font-weight:700;
+  letter-spacing:0.5px;
+}
+
+.subtitle{
+  color:var(--muted);
+  font-size:14px;
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:20px;
+}
+
+.table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+.table th{
+  text-align:left;
+  padding:12px;
+  color:var(--muted);
+  font-weight:500;
+  border-bottom:1px solid var(--border);
+}
+
+.table td{
+  padding:14px 12px;
+  border-bottom:1px solid var(--border);
+}
+
+.badge{
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+}
+
+.green{background:rgba(34,197,94,0.15); color:var(--green);}
+.yellow{background:rgba(234,179,8,0.15); color:var(--yellow);}
+.red{background:rgba(239,68,68,0.15); color:var(--red);}
+
+.metric{
+  display:flex;
+  gap:16px;
+  margin-bottom:20px;
+}
+
+.metric-box{
+  flex:1;
+  background:var(--card);
+  border:1px solid var(--border);
+  padding:16px;
+  border-radius:var(--radius);
+}
+
+.metric-title{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.metric-value{
+  font-size:20px;
+  font-weight:700;
+  margin-top:6px;
+}
+
+.refresh{
+  color:var(--accent);
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div>
+      <div class="title">EdgeFlow</div>
+      <div class="subtitle">Live Betting Edge Scanner</div>
+    </div>
+    <div class="refresh" id="refreshTime">Updating...</div>
+  </div>
+
+  <div class="metric">
+    <div class="metric-box">
+      <div class="metric-title">Top Edge</div>
+      <div class="metric-value" id="topEdge">-</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-title">Opportunities</div>
+      <div class="metric-value" id="opps">-</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-title">Avg EV</div>
+      <div class="metric-value" id="avgEV">-</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Game</th>
+          <th>Market</th>
+          <th>Odds</th>
+          <th>Fair Odds</th>
+          <th>EV %</th>
+          <th>Grade</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+
+// Mock data (replace later with API)
+function generateData(){
+  const games = [
+    "Lakers vs Heat",
+    "Celtics vs Bucks",
+    "Warriors vs Suns",
+    "Knicks vs Nets",
+    "Nuggets vs Clippers"
+  ];
+
+  return games.map(g => {
+    const odds = (1.7 + Math.random()*0.8).toFixed(2);
+    const fair = (1.6 + Math.random()*0.8).toFixed(2);
+
+    const implied = 1/odds;
+    const fairProb = 1/fair;
+
+    const ev = ((fairProb * odds) - 1) * 100;
+
+    return {
+      game: g,
+      market: "Over 178.5",
+      odds,
+      fair,
+      ev
+    };
+  });
+}
+
+function grade(ev){
+  if(ev > 5) return {label:"A", class:"green"};
+  if(ev > 3) return {label:"B", class:"yellow"};
+  return {label:"C", class:"red"};
+}
+
+function render(){
+  const data = generateData();
+
+  let totalEV = 0;
+  let top = -999;
+
+  const rows = data.map(d => {
+    const g = grade(d.ev);
+    totalEV += d.ev;
+    if(d.ev > top) top = d.ev;
+
+    return `
+      <tr>
+        <td>${d.game}</td>
+        <td>${d.market}</td>
+        <td>${d.odds}</td>
+        <td>${d.fair}</td>
+        <td>${d.ev.toFixed(2)}%</td>
+        <td><span class="badge ${g.class}">${g.label}</span></td>
+      </tr>
+    `;
+  }).join("");
+
+  document.getElementById("tableBody").innerHTML = rows;
+
+  document.getElementById("topEdge").innerText = top.toFixed(2)+"%";
+  document.getElementById("opps").innerText = data.length;
+  document.getElementById("avgEV").innerText = (totalEV/data.length).toFixed(2)+"%";
+
+  document.getElementById("refreshTime").innerText =
+    "Updated: " + new Date().toLocaleTimeString();
+}
+
+// initial + auto refresh
+render();
+setInterval(render, 10000);
+
+</script>
+
+</body>
+</html>
