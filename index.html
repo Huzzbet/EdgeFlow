@@ -115,7 +115,6 @@ body{
 .green{background:rgba(34,197,94,0.15); color:var(--green);}
 .yellow{background:rgba(234,179,8,0.15); color:var(--yellow);}
 .red{background:rgba(239,68,68,0.15); color:var(--red);}
-
 </style>
 </head>
 
@@ -166,8 +165,10 @@ body{
 
 <script>
 
-// 🔑 REPLACE THIS
-const API_KEY = "PASTE_YOUR_NEW_API_KEY_HERE";
+// 🔑 PUT YOUR REAL API KEY HERE
+const API_KEY = "PASTE_YOUR_REAL_API_KEY_HERE";
+
+// 🔄 If NBA empty, change to "soccer_epl" or "basketball_nbl"
 const SPORT = "basketball_nba";
 
 async function fetchOdds(){
@@ -175,9 +176,19 @@ async function fetchOdds(){
 
   try{
     const res = await fetch(url);
-    return await res.json();
+
+    if(!res.ok){
+      console.error("API ERROR:", res.status);
+      return [];
+    }
+
+    const data = await res.json();
+    console.log("RAW API DATA:", data); // DEBUG
+
+    return data;
+
   }catch(e){
-    console.error(e);
+    console.error("Fetch failed:", e);
     return [];
   }
 }
@@ -185,25 +196,31 @@ async function fetchOdds(){
 function processData(data){
   let results = [];
 
+  if(!data || !data.length){
+    console.warn("No games returned");
+    return [];
+  }
+
   data.forEach(game => {
     const gameName = `${game.home_team} vs ${game.away_team}`;
 
-    game.bookmakers.forEach(book => {
-      book.markets.forEach(market => {
+    game.bookmakers?.forEach(book => {
+      book.markets?.forEach(market => {
 
         if(market.key !== "h2h" && market.key !== "totals") return;
 
-        market.outcomes.forEach(outcome => {
+        market.outcomes?.forEach(outcome => {
 
           const odds = outcome.price;
-          if(!odds || odds < 1.5 || odds > 5) return;
+          if(!odds) return;
 
-          // TEMP FAIR MODEL (we upgrade next)
-          const fairOdds = odds * 0.95;
+          // TEMP MODEL (we upgrade next)
+          const fairOdds = odds * 0.97;
 
           const ev = ((1/fairOdds * odds) - 1) * 100;
 
-          if(ev < 2) return;
+          // 🔥 FILTER OFF FOR DEBUG (turn back on later)
+          // if(ev < 2) return;
 
           results.push({
             game: gameName,
@@ -220,7 +237,7 @@ function processData(data){
 
   });
 
-  return results.sort((a,b)=>b.ev-a.ev).slice(0,15);
+  return results.sort((a,b)=>b.ev-a.ev).slice(0,20);
 }
 
 function grade(ev){
@@ -231,14 +248,18 @@ function grade(ev){
 
 async function render(){
 
-  document.getElementById("refreshTime").innerText = "Scanning...";
+  document.getElementById("refreshTime").innerText = "Scanning markets...";
 
   const raw = await fetchOdds();
   const data = processData(raw);
 
   if(!data.length){
     document.getElementById("tableBody").innerHTML =
-      `<tr><td colspan="6">No edges found</td></tr>`;
+      `<tr><td colspan="6">No data — check sport or API key</td></tr>`;
+
+    document.getElementById("topEdge").innerText = "-";
+    document.getElementById("opps").innerText = "0";
+    document.getElementById("avgEV").innerText = "-";
     return;
   }
 
