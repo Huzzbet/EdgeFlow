@@ -7,8 +7,8 @@
 
 <style>
 :root{
-  --bg:#0b1220;
-  --card:#111827;
+  --bg:#020617;
+  --card:#0b1220;
   --border:rgba(255,255,255,0.08);
   --text:#e5e7eb;
   --muted:#9ca3af;
@@ -16,47 +16,75 @@
   --yellow:#eab308;
   --red:#ef4444;
   --accent:#38bdf8;
-  --shadow:0 20px 50px rgba(0,0,0,0.6);
-  --radius:16px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto;
+  --shadow:0 25px 60px rgba(0,0,0,0.6);
+  --radius:18px;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto;
 }
 
 body{
   margin:0;
-  background:linear-gradient(180deg,#020617,#0b1220);
+  background:linear-gradient(180deg,#020617,#020617 40%,#0b1220);
   color:var(--text);
 }
 
 .container{
   max-width:1200px;
   margin:auto;
-  padding:24px;
+  padding:28px;
 }
 
 .header{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-bottom:24px;
+  margin-bottom:26px;
 }
 
 .title{
-  font-size:28px;
+  font-size:30px;
   font-weight:700;
-  letter-spacing:0.5px;
 }
 
 .subtitle{
+  font-size:13px;
   color:var(--muted);
-  font-size:14px;
+}
+
+.refresh{
+  font-size:13px;
+  color:var(--accent);
+}
+
+.metric{
+  display:flex;
+  gap:16px;
+  margin-bottom:22px;
+}
+
+.metric-box{
+  flex:1;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px;
+}
+
+.metric-title{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.metric-value{
+  font-size:22px;
+  font-weight:700;
+  margin-top:6px;
 }
 
 .card{
   background:var(--card);
   border:1px solid var(--border);
   border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  padding:20px;
+  overflow:hidden;
 }
 
 .table{
@@ -65,15 +93,15 @@ body{
 }
 
 .table th{
+  padding:14px;
   text-align:left;
-  padding:12px;
   color:var(--muted);
   font-weight:500;
   border-bottom:1px solid var(--border);
 }
 
 .table td{
-  padding:14px 12px;
+  padding:14px;
   border-bottom:1px solid var(--border);
 }
 
@@ -88,35 +116,6 @@ body{
 .yellow{background:rgba(234,179,8,0.15); color:var(--yellow);}
 .red{background:rgba(239,68,68,0.15); color:var(--red);}
 
-.metric{
-  display:flex;
-  gap:16px;
-  margin-bottom:20px;
-}
-
-.metric-box{
-  flex:1;
-  background:var(--card);
-  border:1px solid var(--border);
-  padding:16px;
-  border-radius:var(--radius);
-}
-
-.metric-title{
-  font-size:12px;
-  color:var(--muted);
-}
-
-.metric-value{
-  font-size:20px;
-  font-weight:700;
-  margin-top:6px;
-}
-
-.refresh{
-  color:var(--accent);
-  font-size:13px;
-}
 </style>
 </head>
 
@@ -129,7 +128,7 @@ body{
       <div class="title">EdgeFlow</div>
       <div class="subtitle">Live Betting Edge Scanner</div>
     </div>
-    <div class="refresh" id="refreshTime">Updating...</div>
+    <div class="refresh" id="refreshTime">Loading...</div>
   </div>
 
   <div class="metric">
@@ -167,43 +166,81 @@ body{
 
 <script>
 
-// Mock data (replace later with API)
-function generateData(){
-  const games = [
-    "Lakers vs Heat",
-    "Celtics vs Bucks",
-    "Warriors vs Suns",
-    "Knicks vs Nets",
-    "Nuggets vs Clippers"
-  ];
+// 🔑 REPLACE THIS
+const API_KEY = "PASTE_YOUR_NEW_API_KEY_HERE";
+const SPORT = "basketball_nba";
 
-  return games.map(g => {
-    const odds = (1.7 + Math.random()*0.8).toFixed(2);
-    const fair = (1.6 + Math.random()*0.8).toFixed(2);
+async function fetchOdds(){
+  const url = `https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?regions=us&markets=h2h,totals&oddsFormat=decimal&apiKey=${API_KEY}`;
 
-    const implied = 1/odds;
-    const fairProb = 1/fair;
+  try{
+    const res = await fetch(url);
+    return await res.json();
+  }catch(e){
+    console.error(e);
+    return [];
+  }
+}
 
-    const ev = ((fairProb * odds) - 1) * 100;
+function processData(data){
+  let results = [];
 
-    return {
-      game: g,
-      market: "Over 178.5",
-      odds,
-      fair,
-      ev
-    };
+  data.forEach(game => {
+    const gameName = `${game.home_team} vs ${game.away_team}`;
+
+    game.bookmakers.forEach(book => {
+      book.markets.forEach(market => {
+
+        if(market.key !== "h2h" && market.key !== "totals") return;
+
+        market.outcomes.forEach(outcome => {
+
+          const odds = outcome.price;
+          if(!odds || odds < 1.5 || odds > 5) return;
+
+          // TEMP FAIR MODEL (we upgrade next)
+          const fairOdds = odds * 0.95;
+
+          const ev = ((1/fairOdds * odds) - 1) * 100;
+
+          if(ev < 2) return;
+
+          results.push({
+            game: gameName,
+            market: `${market.key} - ${outcome.name}`,
+            odds,
+            fair: fairOdds,
+            ev
+          });
+
+        });
+
+      });
+    });
+
   });
+
+  return results.sort((a,b)=>b.ev-a.ev).slice(0,15);
 }
 
 function grade(ev){
-  if(ev > 5) return {label:"A", class:"green"};
+  if(ev > 6) return {label:"A", class:"green"};
   if(ev > 3) return {label:"B", class:"yellow"};
   return {label:"C", class:"red"};
 }
 
-function render(){
-  const data = generateData();
+async function render(){
+
+  document.getElementById("refreshTime").innerText = "Scanning...";
+
+  const raw = await fetchOdds();
+  const data = processData(raw);
+
+  if(!data.length){
+    document.getElementById("tableBody").innerHTML =
+      `<tr><td colspan="6">No edges found</td></tr>`;
+    return;
+  }
 
   let totalEV = 0;
   let top = -999;
@@ -218,7 +255,7 @@ function render(){
         <td>${d.game}</td>
         <td>${d.market}</td>
         <td>${d.odds}</td>
-        <td>${d.fair}</td>
+        <td>${d.fair.toFixed(2)}</td>
         <td>${d.ev.toFixed(2)}%</td>
         <td><span class="badge ${g.class}">${g.label}</span></td>
       </tr>
@@ -235,9 +272,8 @@ function render(){
     "Updated: " + new Date().toLocaleTimeString();
 }
 
-// initial + auto refresh
 render();
-setInterval(render, 10000);
+setInterval(render, 15000);
 
 </script>
 
