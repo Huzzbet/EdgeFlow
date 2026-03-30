@@ -37,7 +37,7 @@ body{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-bottom:26px;
+  margin-bottom:10px;
 }
 
 .title{
@@ -53,6 +53,25 @@ body{
 .refresh{
   font-size:13px;
   color:var(--accent);
+}
+
+.controls{
+  margin-bottom:20px;
+}
+
+button{
+  padding:10px 16px;
+  background:var(--accent);
+  border:none;
+  border-radius:10px;
+  color:#020617;
+  font-weight:700;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+button:hover{
+  opacity:0.85;
 }
 
 .metric{
@@ -96,7 +115,6 @@ body{
   padding:14px;
   text-align:left;
   color:var(--muted);
-  font-weight:500;
   border-bottom:1px solid var(--border);
 }
 
@@ -127,7 +145,12 @@ body{
       <div class="title">EdgeFlow</div>
       <div class="subtitle">Live Betting Edge Scanner</div>
     </div>
-    <div class="refresh" id="refreshTime">Loading...</div>
+    <div class="refresh" id="refreshTime">Idle</div>
+  </div>
+
+  <!-- 🔥 SCAN BUTTON -->
+  <div class="controls">
+    <button onclick="render()">🔍 Scan Now</button>
   </div>
 
   <div class="metric">
@@ -165,30 +188,19 @@ body{
 
 <script>
 
-// 🔑 PUT YOUR REAL API KEY HERE
-const API_KEY = "4346f400519bd25dc82e7b0d109fbc3b";
-
-// 🔄 If NBA empty, change to "soccer_epl" or "basketball_nbl"
-const SPORT = "basketball_nba";
+const API_KEY = "PASTE_YOUR_REAL_API_KEY";
+const SPORT = "soccer_epl"; // safer for testing
 
 async function fetchOdds(){
-  const url = `https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?regions=us&markets=h2h,totals&oddsFormat=decimal&apiKey=${API_KEY}`;
+  const url = `https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?regions=us,uk,eu,au&markets=h2h,totals&oddsFormat=decimal&apiKey=${API_KEY}`;
 
   try{
     const res = await fetch(url);
-
-    if(!res.ok){
-      console.error("API ERROR:", res.status);
-      return [];
-    }
-
     const data = await res.json();
-    console.log("RAW API DATA:", data); // DEBUG
-
+    console.log("API DATA:", data);
     return data;
-
   }catch(e){
-    console.error("Fetch failed:", e);
+    console.error(e);
     return [];
   }
 }
@@ -196,31 +208,19 @@ async function fetchOdds(){
 function processData(data){
   let results = [];
 
-  if(!data || !data.length){
-    console.warn("No games returned");
-    return [];
-  }
-
   data.forEach(game => {
     const gameName = `${game.home_team} vs ${game.away_team}`;
 
     game.bookmakers?.forEach(book => {
       book.markets?.forEach(market => {
 
-        if(market.key !== "h2h" && market.key !== "totals") return;
-
         market.outcomes?.forEach(outcome => {
 
           const odds = outcome.price;
           if(!odds) return;
 
-          // TEMP MODEL (we upgrade next)
           const fairOdds = odds * 0.97;
-
           const ev = ((1/fairOdds * odds) - 1) * 100;
-
-          // 🔥 FILTER OFF FOR DEBUG (turn back on later)
-          // if(ev < 2) return;
 
           results.push({
             game: gameName,
@@ -248,18 +248,14 @@ function grade(ev){
 
 async function render(){
 
-  document.getElementById("refreshTime").innerText = "Scanning markets...";
+  document.getElementById("refreshTime").innerText = "Scanning...";
 
   const raw = await fetchOdds();
   const data = processData(raw);
 
   if(!data.length){
     document.getElementById("tableBody").innerHTML =
-      `<tr><td colspan="6">No data — check sport or API key</td></tr>`;
-
-    document.getElementById("topEdge").innerText = "-";
-    document.getElementById("opps").innerText = "0";
-    document.getElementById("avgEV").innerText = "-";
+      `<tr><td colspan="6">No data available</td></tr>`;
     return;
   }
 
@@ -293,8 +289,8 @@ async function render(){
     "Updated: " + new Date().toLocaleTimeString();
 }
 
+// run once
 render();
-setInterval(render, 15000);
 
 </script>
 
