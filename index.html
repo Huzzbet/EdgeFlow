@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>EdgeFlow Pro — EV Scanner</title>
+<title>EdgeFlow Pro — EV Command Centre</title>
+
 <style>
 :root{
   --bg:#020617;
@@ -28,35 +29,17 @@ body{
 }
 
 .container{
-  max-width:1200px;
+  max-width:1300px;
   margin:auto;
   padding:24px;
 }
 
-.header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:12px;
-}
-
 .title{
-  font-size:32px;
+  font-size:34px;
   font-weight:900;
   background:linear-gradient(90deg,#38bdf8,#22c55e);
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
-}
-
-.sub{
-  color:var(--muted);
-  font-size:14px;
-}
-
-.status{
-  font-size:12px;
-  color:var(--muted);
 }
 
 .controls{
@@ -64,7 +47,6 @@ body{
   display:flex;
   gap:12px;
   flex-wrap:wrap;
-  align-items:center;
 }
 
 .scan-btn{
@@ -74,25 +56,11 @@ body{
   background:linear-gradient(90deg,#38bdf8,#0ea5e9);
   font-weight:800;
   cursor:pointer;
-  color:#02111f;
-}
-
-.scan-btn:disabled{
-  opacity:0.6;
-  cursor:not-allowed;
-}
-
-.pill{
-  padding:6px 12px;
-  border-radius:999px;
-  border:1px solid var(--border);
-  font-size:12px;
-  color:var(--muted);
 }
 
 .metric{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:12px;
   margin-bottom:20px;
 }
@@ -102,10 +70,6 @@ body{
   padding:16px;
   border-radius:16px;
   border:1px solid var(--border);
-}
-
-.box b{
-  font-size:20px;
 }
 
 .table{
@@ -118,10 +82,8 @@ body{
   border-bottom:1px solid var(--border);
 }
 
-.table th{
-  color:var(--muted);
-  font-size:12px;
-  text-transform:uppercase;
+.table tr:hover{
+  background:rgba(56,189,248,0.06);
 }
 
 .badge{
@@ -134,99 +96,100 @@ body{
 .A{ background:rgba(56,189,248,0.2); color:#38bdf8; }
 .B{ background:rgba(234,179,8,0.2); color:#eab308; }
 
-.top-row{
-  background:rgba(34,197,94,0.08);
-}
-
-@media(max-width:900px){
-  .metric{grid-template-columns:repeat(2,1fr);}
-}
-@media(max-width:500px){
-  .metric{grid-template-columns:1fr;}
+.top{
+  border-left:4px solid #22c55e;
 }
 </style>
 </head>
+
 <body>
 <div class="container">
-  <div class="header">
-    <div>
-      <div class="title">EdgeFlow Pro</div>
-      <div class="sub">Filtered EV Scanner — Lines & Totals Only</div>
-    </div>
-    <div class="status" id="status">Idle — waiting for scan</div>
-  </div>
-  <div class="controls">
-    <button class="scan-btn" id="scanBtn" onclick="render()">🔍 Scan Now</button>
-    <div class="pill">Mode: High EV Only</div>
-    <div class="pill">Markets: Spreads + Totals</div>
-    <div class="pill">Cooldown: 30s</div>
-  </div>
-  <div class="metric">
-    <div class="box">Top Edge<br><b id="topEdge">-</b></div>
-    <div class="box">Opportunities<br><b id="opps">-</b></div>
-    <div class="box">Avg EV<br><b id="avgEV">-</b></div>
-    <div class="box">Cache<br><b id="cache">Empty</b></div>
-  </div>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Game</th>
-        <th>Market</th>
-        <th>Odds</th>
-        <th>Fair</th>
-        <th>EV%</th>
-        <th>Grade</th>
-      </tr>
-    </thead>
-    <tbody id="body">
-      <tr><td colspan="6">Press Scan to begin</td></tr>
-    </tbody>
-  </table>
+
+<div class="title">EdgeFlow Command Centre</div>
+
+<div class="controls">
+<button class="scan-btn" onclick="render()">🔍 Scan Markets</button>
 </div>
+
+<div class="metric">
+<div class="box">Top Edge<br><b id="topEdge">-</b></div>
+<div class="box">Opportunities<br><b id="opps">-</b></div>
+<div class="box">Avg EV<br><b id="avgEV">-</b></div>
+<div class="box">Best Bet<br><b id="bestBet">-</b></div>
+<div class="box">Kelly Stake<br><b id="kelly">-</b></div>
+</div>
+
+<table class="table">
+<thead>
+<tr>
+<th>Game</th>
+<th>Market</th>
+<th>Odds</th>
+<th>True %</th>
+<th>EV%</th>
+<th>Stake</th>
+<th>Grade</th>
+</tr>
+</thead>
+<tbody id="body"></tbody>
+</table>
+
+</div>
+
 <script>
 const API_KEY = "PASTE_YOUR_API_KEY";
 const SPORT = "soccer_epl";
-const COOLDOWN = 30000;
-
-let cache = null;
-let last = 0;
-let scanning = false;
 
 function grade(ev){
-  if(ev >= 6) return {label:"A+", class:"Aplus"};
+  if(ev >= 7) return {label:"A+", class:"Aplus"};
   if(ev >= 4) return {label:"A", class:"A"};
-  if(ev >= 2.5) return {label:"B", class:"B"};
+  if(ev >= 2) return {label:"B", class:"B"};
   return null;
 }
 
+// REMOVE BOOKMAKER MARGIN
+function fairProb(outcomes){
+  const probs = outcomes.map(o => 1/o.price);
+  const total = probs.reduce((a,b)=>a+b,0);
+  return probs.map(p => p/total);
+}
+
+// KELLY FORMULA
+function kelly(odds, prob){
+  const b = odds - 1;
+  return ((b * prob) - (1 - prob)) / b;
+}
+
 function process(data){
-  const results = [];
+  let results = [];
 
   data.forEach(game=>{
     const name = `${game.home_team} vs ${game.away_team}`;
 
     game.bookmakers?.forEach(book=>{
       book.markets?.forEach(m=>{
-
         if(!["spreads","totals"].includes(m.key)) return;
 
-        m.outcomes?.forEach(o=>{
-          const odds = Number(o.price);
-          if(!odds || odds <= 1.5) return;
+        const fair = fairProb(m.outcomes);
 
-          const fair = odds * 0.985;
-          const ev = ((odds / fair) - 1) * 100;
+        m.outcomes.forEach((o,i)=>{
+          const odds = o.price;
+          const trueProb = fair[i];
+          const ev = ((odds * trueProb) - 1) * 100;
 
           const g = grade(ev);
           if(!g) return;
 
+          const k = Math.max(0, kelly(odds, trueProb));
+
           results.push({
             name,
-            market: `${m.key} ${o.name} (${book.title})`,
+            market:`${m.key} ${o.name}`,
             odds,
-            fair,
+            trueProb,
             ev,
-            grade: g
+            kelly:k,
+            grade:g
           });
         });
       });
@@ -236,75 +199,44 @@ function process(data){
   return results.sort((a,b)=>b.ev-a.ev).slice(0,20);
 }
 
-async function fetchOdds(){
-  if(cache && Date.now() - last < COOLDOWN){
-    document.getElementById("status").textContent = "Using cached data";
-    return cache;
-  }
+async function render(){
+  document.getElementById("body").innerHTML = "Scanning...";
 
   const res = await fetch(`https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?markets=spreads,totals&oddsFormat=decimal&apiKey=${API_KEY}`);
+  const raw = await res.json();
 
-  if(!res.ok) throw new Error("API error");
+  const data = process(raw);
 
-  const data = await res.json();
-
-  cache = data;
-  last = Date.now();
-
-  return data;
-}
-
-async function render(){
-  if(scanning) return;
-
-  scanning = true;
-  const btn = document.getElementById("scanBtn");
-  btn.disabled = true;
-  btn.textContent = "Scanning...";
-  document.getElementById("status").textContent = "Scanning markets...";
-
-  try{
-    const raw = await fetchOdds();
-    const data = process(raw);
-
-    if(!data.length){
-      document.getElementById("body").innerHTML = "<tr><td colspan='6'>No edges found</td></tr>";
-      return;
-    }
-
-    let total=0;
-    let top=data[0].ev;
-
-    document.getElementById("body").innerHTML = data.map((d,i)=>{
-      total += d.ev;
-      return `
-      <tr class="${i===0 ? "top-row":""}">
-        <td>${d.name}</td>
-        <td>${d.market}</td>
-        <td>${d.odds.toFixed(2)}</td>
-        <td>${d.fair.toFixed(2)}</td>
-        <td>${d.ev.toFixed(2)}%</td>
-        <td><span class="badge ${d.grade.class}">${d.grade.label}</span></td>
-      </tr>`;
-    }).join("");
-
-    document.getElementById("topEdge").textContent = top.toFixed(2)+"%";
-    document.getElementById("opps").textContent = data.length;
-    document.getElementById("avgEV").textContent = (total/data.length).toFixed(2)+"%";
-    document.getElementById("cache").textContent = "Updated";
-
-    document.getElementById("status").textContent = "Scan complete";
+  if(!data.length){
+    document.getElementById("body").innerHTML = "<tr><td colspan='7'>No edges</td></tr>";
+    return;
   }
-  catch(e){
-    document.getElementById("status").textContent = "Error: check API key";
-  }
-  finally{
-    scanning = false;
-    btn.disabled = false;
-    btn.textContent = "🔍 Scan Now";
-  }
+
+  let total=0;
+
+  document.getElementById("body").innerHTML = data.map((d,i)=>{
+    total += d.ev;
+
+    return `
+    <tr class="${i===0?'top':''}">
+      <td>${d.name}</td>
+      <td>${d.market}</td>
+      <td>${d.odds.toFixed(2)}</td>
+      <td>${(d.trueProb*100).toFixed(1)}%</td>
+      <td>${d.ev.toFixed(2)}%</td>
+      <td>${(d.kelly*100).toFixed(1)}%</td>
+      <td><span class="badge ${d.grade.class}">${d.grade.label}</span></td>
+    </tr>
+    `;
+  }).join("");
+
+  document.getElementById("topEdge").textContent = data[0].ev.toFixed(2)+"%";
+  document.getElementById("opps").textContent = data.length;
+  document.getElementById("avgEV").textContent = (total/data.length).toFixed(2)+"%";
+  document.getElementById("bestBet").textContent = data[0].market;
+  document.getElementById("kelly").textContent = (data[0].kelly*100).toFixed(1)+"%";
 }
 </script>
+
 </body>
 </html>
-:::
