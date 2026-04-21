@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>EdgeFlow Pro — EV Command Centre</title>
 
 <style>
@@ -17,10 +17,9 @@
   --red:#ef4444;
   --blue:#38bdf8;
   --shadow:0 25px 60px rgba(0,0,0,0.55);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto;
 }
 
-*{box-sizing:border-box;}
+*{box-sizing:border-box; font-family:system-ui,-apple-system,Segoe UI;}
 
 body{
   margin:0;
@@ -47,6 +46,15 @@ body{
   display:flex;
   gap:12px;
   flex-wrap:wrap;
+  align-items:center;
+}
+
+select, input{
+  padding:10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:white;
 }
 
 .scan-btn{
@@ -78,8 +86,9 @@ body{
 }
 
 .table th, .table td{
-  padding:14px;
+  padding:12px;
   border-bottom:1px solid var(--border);
+  font-size:14px;
 }
 
 .table tr:hover{
@@ -87,7 +96,7 @@ body{
 }
 
 .badge{
-  padding:6px 10px;
+  padding:5px 10px;
   border-radius:999px;
   font-weight:800;
 }
@@ -95,6 +104,18 @@ body{
 .Aplus{ background:rgba(34,197,94,0.2); color:#22c55e; }
 .A{ background:rgba(56,189,248,0.2); color:#38bdf8; }
 .B{ background:rgba(234,179,8,0.2); color:#eab308; }
+
+.edge-bar{
+  height:6px;
+  background:#1e293b;
+  border-radius:4px;
+  overflow:hidden;
+}
+
+.edge-fill{
+  height:100%;
+  background:linear-gradient(90deg,#22c55e,#38bdf8);
+}
 
 .top{
   border-left:4px solid #22c55e;
@@ -108,7 +129,23 @@ body{
 <div class="title">EdgeFlow Command Centre</div>
 
 <div class="controls">
+
+<select id="sport">
+<option value="basketball_nba">NBA</option>
+<option value="australian_rules_afl">AFL</option>
+<option value="soccer_epl">EPL</option>
+</select>
+
+<input id="bankroll" type="number" placeholder="Bankroll ($)" value="5000">
+
+<select id="kellyFrac">
+<option value="1">Full Kelly</option>
+<option value="0.5" selected>Half Kelly</option>
+<option value="0.25">Quarter Kelly</option>
+</select>
+
 <button class="scan-btn" onclick="render()">🔍 Scan Markets</button>
+
 </div>
 
 <div class="metric">
@@ -116,7 +153,7 @@ body{
 <div class="box">Opportunities<br><b id="opps">-</b></div>
 <div class="box">Avg EV<br><b id="avgEV">-</b></div>
 <div class="box">Best Bet<br><b id="bestBet">-</b></div>
-<div class="box">Kelly Stake<br><b id="kelly">-</b></div>
+<div class="box">Stake ($)<br><b id="stake">-</b></div>
 </div>
 
 <table class="table">
@@ -127,6 +164,7 @@ body{
 <th>Odds</th>
 <th>True %</th>
 <th>EV%</th>
+<th>Edge</th>
 <th>Stake</th>
 <th>Grade</th>
 </tr>
@@ -138,7 +176,6 @@ body{
 
 <script>
 const API_KEY = "PASTE_YOUR_API_KEY";
-const SPORT = "soccer_epl";
 
 function grade(ev){
   if(ev >= 7) return {label:"A+", class:"Aplus"};
@@ -147,14 +184,12 @@ function grade(ev){
   return null;
 }
 
-// REMOVE BOOKMAKER MARGIN
 function fairProb(outcomes){
   const probs = outcomes.map(o => 1/o.price);
   const total = probs.reduce((a,b)=>a+b,0);
   return probs.map(p => p/total);
 }
 
-// KELLY FORMULA
 function kelly(odds, prob){
   const b = odds - 1;
   return ((b * prob) - (1 - prob)) / b;
@@ -200,15 +235,20 @@ function process(data){
 }
 
 async function render(){
+
+  const sport = document.getElementById("sport").value;
+  const bankroll = parseFloat(document.getElementById("bankroll").value || 0);
+  const kFrac = parseFloat(document.getElementById("kellyFrac").value);
+
   document.getElementById("body").innerHTML = "Scanning...";
 
-  const res = await fetch(`https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?markets=spreads,totals&oddsFormat=decimal&apiKey=${API_KEY}`);
+  const res = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?markets=spreads,totals&oddsFormat=decimal&apiKey=${API_KEY}`);
   const raw = await res.json();
 
   const data = process(raw);
 
   if(!data.length){
-    document.getElementById("body").innerHTML = "<tr><td colspan='7'>No edges</td></tr>";
+    document.getElementById("body").innerHTML = "<tr><td colspan='8'>No edges</td></tr>";
     return;
   }
 
@@ -217,6 +257,8 @@ async function render(){
   document.getElementById("body").innerHTML = data.map((d,i)=>{
     total += d.ev;
 
+    const stake = bankroll * d.kelly * kFrac;
+
     return `
     <tr class="${i===0?'top':''}">
       <td>${d.name}</td>
@@ -224,17 +266,25 @@ async function render(){
       <td>${d.odds.toFixed(2)}</td>
       <td>${(d.trueProb*100).toFixed(1)}%</td>
       <td>${d.ev.toFixed(2)}%</td>
-      <td>${(d.kelly*100).toFixed(1)}%</td>
+      <td>
+        <div class="edge-bar">
+          <div class="edge-fill" style="width:${Math.min(d.ev*5,100)}%"></div>
+        </div>
+      </td>
+      <td>$${stake.toFixed(0)}</td>
       <td><span class="badge ${d.grade.class}">${d.grade.label}</span></td>
     </tr>
     `;
   }).join("");
 
-  document.getElementById("topEdge").textContent = data[0].ev.toFixed(2)+"%";
+  const best = data[0];
+  const bestStake = bankroll * best.kelly * kFrac;
+
+  document.getElementById("topEdge").textContent = best.ev.toFixed(2)+"%";
   document.getElementById("opps").textContent = data.length;
   document.getElementById("avgEV").textContent = (total/data.length).toFixed(2)+"%";
-  document.getElementById("bestBet").textContent = data[0].market;
-  document.getElementById("kelly").textContent = (data[0].kelly*100).toFixed(1)+"%";
+  document.getElementById("bestBet").textContent = best.market;
+  document.getElementById("stake").textContent = "$"+bestStake.toFixed(0);
 }
 </script>
 
